@@ -1,6 +1,20 @@
+<div align="center">
+
 # 🔥 每日热榜 - OpenClaw Skill
 
+[![GitHub stars](https://img.shields.io/github/stars/one-box-u/openclaw-daily-hot-news)](https://github.com/one-box-u/openclaw-daily-hot-news/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/one-box-u/openclaw-daily-hot-news)](https://github.com/one-box-u/openclaw-daily-hot-news/network)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+---
+
+**📖 [中文说明](README.md)** | **🇺🇸 [English Readme](README_EN.md)**
+
+---
+
 一个基于 DailyHotApi 的热榜聚合查询技能，支持 54 个平台热榜查询、跨平台聚合、舆情监控等功能。
+
+</div>
 
 ## 🎯 功能特性
 

@@ -1,6 +1,20 @@
+<div align="center">
+
 # 🔥 Daily Hot News - OpenClaw Skill
 
+[![GitHub stars](https://img.shields.io/github/stars/one-box-u/openclaw-daily-hot-news)](https://github.com/one-box-u/openclaw-daily-hot-news/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/one-box-u/openclaw-daily-hot-news)](https://github.com/one-box-u/openclaw-daily-hot-news/network)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+---
+
+**🇺🇸 English Readme** | **📖 [中文说明](README.md)**
+
+---
+
 A hot news aggregation skill based on DailyHotApi, supporting 54 platform hot search queries, cross-platform aggregation, and sentiment monitoring.
+
+</div>
 
 ## 🎯 Features
 
