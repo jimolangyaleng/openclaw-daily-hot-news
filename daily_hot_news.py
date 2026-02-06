@@ -13,35 +13,40 @@ try:
     from .news_digest import NewsDigest, DigestConfig, create_digest as create_news_digest
     from .industry_hot import IndustryHot, IndustryConfig, create_industry_hot
     from .personalized import PersonalizedSubscription, UserPreferences, create_personalized
+    from .storage import storage
 except ImportError:
     from news_digest import NewsDigest, DigestConfig, create_digest as create_news_digest
     from industry_hot import IndustryHot, IndustryConfig, create_industry_hot
     from personalized import PersonalizedSubscription, UserPreferences, create_personalized
+    from storage import storage
 
 
 class DailyHotNewsSkill:
     """每日热榜技能主类"""
-    
+
     def __init__(self, api_client=None, formatter=None):
         """
         初始化技能
-        
+
         Args:
             api_client: API客户端实例（用于获取热榜数据）
             formatter: 格式化器实例（用于格式化输出）
         """
         self.api_client = api_client
         self.formatter = formatter
-        
+
         # 初始化各功能模块
         self.news_digest: Optional[NewsDigest] = None
         self.industry_hot: Optional[IndustryHot] = None
         self.personalized: Optional[PersonalizedSubscription] = None
-    
+
+        # 标记是否已检查过旧数据（避免每次都提示）
+        self._old_data_checked = False
+
     async def initialize(self):
         """初始化各模块"""
         self.news_digest = await create_news_digest(
-            api_client=self.api_client, 
+            api_client=self.api_client,
             formatter=self.formatter
         )
         self.industry_hot = await create_industry_hot(
@@ -52,30 +57,102 @@ class DailyHotNewsSkill:
             api_client=self.api_client,
             formatter=self.formatter
         )
+
+        # 启动时检查是否有7天前的旧数据
+        await self._check_old_data()
+
+    async def _check_old_data(self):
+        """检查并提示用户清理7天前的旧数据"""
+        if self._old_data_checked:
+            return
+
+        old_files = storage.get_old_data_files(days=7)
+        if old_files:
+            # 统计
+            sources = set(f["source_id"] for f in old_files)
+            print(f"\n⚠️ 发现 {len(old_files)} 个旧数据文件（7天前）")
+            print(f"   涉及平台: {', '.join(list(sources)[:5])}...")
+            print(f"   示例文件: {old_files[0]['date_str']} - {old_files[0]['source_id']}")
+
+            # 返回提示信息给用户
+            self._old_data_notification = {
+                "has_old_data": True,
+                "count": len(old_files),
+                "sources": list(sources),
+                "message": f"""🗑️ **发现旧热榜数据**
+
+检测到 {len(old_files)} 个热榜数据文件已超过7天未清理，涉及 {len(sources)} 个平台。
+
+是否需要清理这些旧数据？
+- 回复"**清理**"或"**是**"：删除7天前的所有旧数据
+- 回复"**跳过**"或"**否**"：保留数据，下次启动不再提醒"""
+            }
+        else:
+            self._old_data_notification = None
+
+        self._old_data_checked = True
+
+    def get_old_data_notification(self) -> Optional[Dict[str, Any]]:
+        """获取旧数据清理提示（如果有）"""
+        return self._old_data_notification
+
+    async def handle_old_data_cleanup(self, confirm: bool = False) -> Dict[str, Any]:
+        """
+        处理旧数据清理
+
+        Args:
+            confirm: 是否确认清理
+
+        Returns:
+            清理结果
+        """
+        if not confirm:
+            return {
+                "action": "ask_confirm",
+                "message": "请确认是否清理7天前的旧数据？\n回复\"清理\"确认，回复\"跳过\"取消。"
+            }
+
+        old_files = storage.get_old_data_files(days=7)
+        if not old_files:
+            return {
+                "action": "show_message",
+                "message": "✅ 没有需要清理的旧数据"
+            }
+
+        deleted = storage.cleanup_old_files(old_files)
+        return {
+            "action": "show_message",
+            "message": f"✅ 成功清理 {deleted} 个旧数据文件"
+        }
     
     async def handle_request(self, user_input: str, intent: str = None) -> Dict[str, Any]:
         """
         处理用户请求
-        
+
         Args:
             user_input: 用户输入
             intent: 意图（可选，用于路由到对应功能）
-            
+
         Returns:
             处理结果
         """
         user_input_lower = user_input.lower()
-        
+
+        # 检查是否是清理旧数据命令
+        cleanup_keywords = ["清理", "删除旧数据", "清除缓存", "clean"]
+        if any(kw in user_input_lower for kw in cleanup_keywords):
+            return await self.handle_old_data_cleanup(confirm=True)
+
         # 路由到对应功能
         if intent == "news_digest" or self._is_news_digest_request(user_input_lower):
             return await self._handle_news_digest(user_input)
-        
+
         elif intent == "industry_hot" or self._is_industry_hot_request(user_input_lower):
             return await self._handle_industry_hot(user_input)
-        
+
         elif intent == "personalized" or self._is_personalized_request(user_input_lower):
             return await self._handle_personalized(user_input)
-        
+
         else:
             # 默认返回功能选择引导
             return await self._show_main_menu()
@@ -118,6 +195,9 @@ class DailyHotNewsSkill:
     
     async def _show_main_menu(self) -> Dict[str, Any]:
         """显示主菜单"""
+        # 检查是否有旧数据清理提示
+        old_data = self.get_old_data_notification()
+
         menu_text = """🎯 **每日热榜 - 功能选择**
 
 请选择您想使用的功能：
@@ -136,10 +216,17 @@ class DailyHotNewsSkill:
 - "看看汽车行业热榜"
 - "配置个性化热榜"
 """
-        return {
+
+        result = {
             "action": "show_menu",
             "message": menu_text
         }
+
+        # 如果有旧数据，添加提示
+        if old_data:
+            result["old_data_prompt"] = old_data["message"]
+
+        return result
     
     # 便捷方法
     

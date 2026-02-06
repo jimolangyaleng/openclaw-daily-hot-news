@@ -153,6 +153,67 @@ class DataStorage:
 
         return sorted(dates, reverse=True)
 
+    def get_old_data_files(self, days: int = 7) -> List[Dict[str, str]]:
+        """
+        获取指定天数之前的旧数据文件列表
+
+        Args:
+            days: 天数阈值（默认7天）
+
+        Returns:
+            旧文件列表 [{source_id, date_str, file_path}]
+        """
+        from datetime import datetime, timedelta
+        
+        old_files = []
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        if not os.path.exists(self.data_dir):
+            return []
+
+        for source in os.listdir(self.data_dir):
+            source_dir = os.path.join(self.data_dir, source)
+            if not os.path.isdir(source_dir):
+                continue
+
+            for filename in os.listdir(source_dir):
+                if not filename.endswith('.json'):
+                    continue
+
+                try:
+                    file_date = datetime.strptime(filename.replace('.json', ''), "%Y-%m-%d")
+                    if file_date < cutoff_date:
+                        old_files.append({
+                            "source_id": source,
+                            "date_str": filename.replace('.json', ''),
+                            "file_path": os.path.join(source_dir, filename)
+                        })
+                except:
+                    continue
+
+        return old_files
+
+    def cleanup_old_files(self, files: List[Dict[str, str]]) -> int:
+        """
+        删除指定的旧文件
+
+        Args:
+            files: 旧文件列表
+
+        Returns:
+            删除的文件数量
+        """
+        deleted_count = 0
+        for f in files:
+            try:
+                if os.path.exists(f["file_path"]):
+                    os.remove(f["file_path"])
+                    deleted_count += 1
+            except Exception as e:
+                print(f"[DataStorage] 删除失败 {f['file_path']}: {e}")
+
+        return deleted_count
+
     def load_hot_list(self, source_id: str, date_str: str = "") -> Optional[List[Dict]]:
         """
         加载指定日期的热榜数据

@@ -21,7 +21,9 @@ A hot news aggregation skill based on DailyHotApi, supporting 54 platform hot se
 ### Core Features
 - **Hot Search Query**: Query hot search data from any of 54 platforms
 - **Category Browse**: Quickly locate specific platforms by category
-- **History**: Automatically save daily hot search data
+- **Real-time Fetch**: Always get the latest hot search data on each request
+- **History**: Automatically save daily hot search data to local storage
+- **Smart Cleanup**: Automatically check and prompt to clean data older than 7 days on startup
 
 ### Extended Features
 - **Hot News Digest**: 15-tag classification, AI-guided selection
@@ -286,6 +288,13 @@ I'll automatically push Weibo hot to your Feishu every morning at 8!
 "已保存了哪些数据"
 ```
 
+### Cleanup Old Data
+
+```bash
+# Reply "清理" or "是" to delete data older than 7 days
+# Skill will automatically detect and prompt on startup
+```
+
 ## 📁 File Structure
 
 ```
@@ -313,6 +322,12 @@ daily-hot-news/
 | `DAILY_HOT_MAX_ITEMS` | 20 | Max Items Returned |
 | `DAILY_HOT_TIMEOUT` | 10 | Request Timeout (seconds) |
 
+### 🔧 Technical Architecture
+
+- **API Calls**: Each user request triggers a real-time call to DailyHotApi for the latest data
+- **History**: Automatically saved to `data/{platform}/{date}.json`
+- **Old Data Cleanup**: Automatically detects data older than 7 days on startup and prompts for cleanup
+
 ## 🛡️ Security Note
 
 - ✅ No API keys or passwords included
@@ -320,6 +335,12 @@ daily-hot-news/
 - ✅ User data stored locally, not uploaded to cloud
 
 ## 📝 Changelog
+
+**v2.0.1** (2026-02-06)
+- ✨ Optimized data fetching: always fetch latest data on each request
+- ✨ Auto-save history records to local storage
+- ✨ Auto-check and prompt cleanup for data older than 7 days on startup
+- 🔧 Fixed API client compatibility issues
 
 **v2.0.0** (2026-02-05)
 - ✨ Added 5 extended features

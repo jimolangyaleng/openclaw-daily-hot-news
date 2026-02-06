@@ -6,8 +6,8 @@ DailyHotApi Skill - API 客户端封装
 import aiohttp
 import asyncio
 from typing import Optional, Dict, List, Any
-from datetime import datetime
 from config import config
+from storage import storage  # 导入存储模块
 
 
 class HotSource:
@@ -89,27 +89,18 @@ class DailyHotApiClient:
     def __init__(self):
         self.api_url = config.api_url
         self.timeout = config.timeout
-        self.cache: Dict[str, tuple[Any, datetime]] = {}
 
-    async def fetch_hot_list(self, source_id: str) -> Optional[Dict[str, Any]]:
+    async def fetch_hot_list(self, source_id: str, use_cache: bool = False) -> Optional[Dict[str, Any]]:
         """
         获取热榜数据
 
         Args:
             source_id: 热榜源 ID（如 weibo, zhihu, bilibili）
+            use_cache: 是否使用缓存（默认False，每次获取最新数据）
 
         Returns:
             热榜数据字典或 None（失败时）
         """
-        # 检查缓存
-        cache_key = source_id
-        if cache_key in self.cache:
-            data, timestamp = self.cache[cache_key]
-            # 检查是否过期
-            import time
-            if time.time() - timestamp.timestamp() < config.cache_ttl:
-                return data
-
         # 获取热榜源信息
         source = HOT_SOURCES.get(source_id)
         if not source:
@@ -132,7 +123,7 @@ class DailyHotApiClient:
                         return None
 
                     # 格式化数据
-                    return {
+                    data = {
                         "platform": source.name,
                         "category": source.category,
                         "source_id": source_id,
@@ -142,9 +133,32 @@ class DailyHotApiClient:
                         "data": self._format_items(result.get("data", [])),
                     }
 
+                    # 每次获取最新数据后，保存到本地历史记录
+                    save_result = storage.save_hot_list(source_id, data)
+                    if save_result:
+                        print(f"[DailyHotApi] ✅ 已保存 {source.name} 热榜数据到历史记录")
+
+                    return data
+
         except Exception as e:
             print(f"[DailyHotApi] Error fetching {source_id}: {e}")
             return None
+
+    async def get_hot榜单(self, source_id: str, limit: int = 10) -> Optional[List[Dict]]:
+        """
+        获取热榜条目列表（兼容旧接口）
+
+        Args:
+            source_id: 热榜源 ID
+            limit: 返回条目数限制
+
+        Returns:
+            热榜条目列表或 None
+        """
+        data = await self.fetch_hot_list(source_id)
+        if data:
+            return data.get("data", [])[:limit]
+        return None
 
     def _format_items(self, items: List[Dict]) -> List[Dict]:
         """格式化热榜条目"""
