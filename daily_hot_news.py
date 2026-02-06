@@ -14,11 +14,15 @@ try:
     from .industry_hot import IndustryHot, IndustryConfig, create_industry_hot
     from .personalized import PersonalizedSubscription, UserPreferences, create_personalized
     from .storage import storage
+    from .api_client import api_client, check_api_availability, deploy_daily_hot_api, get_deployment_status
+    from .config import config
 except ImportError:
     from news_digest import NewsDigest, DigestConfig, create_digest as create_news_digest
     from industry_hot import IndustryHot, IndustryConfig, create_industry_hot
     from personalized import PersonalizedSubscription, UserPreferences, create_personalized
     from storage import storage
+    from api_client import api_client, check_api_availability, deploy_daily_hot_api, get_deployment_status
+    from config import config
 
 
 class DailyHotNewsSkill:
@@ -42,6 +46,7 @@ class DailyHotNewsSkill:
 
         # 标记是否已检查过旧数据（避免每次都提示）
         self._old_data_checked = False
+        self._old_data_notification = None
 
     async def initialize(self):
         """初始化各模块"""
@@ -142,6 +147,76 @@ class DailyHotNewsSkill:
         cleanup_keywords = ["清理", "删除旧数据", "清除缓存", "clean"]
         if any(kw in user_input_lower for kw in cleanup_keywords):
             return await self.handle_old_data_cleanup(confirm=True)
+
+        # 检查是否是获取热榜的请求
+        is_hot_request = any([
+            intent == "news_digest",
+            self._is_news_digest_request(user_input_lower),
+            intent == "industry_hot",
+            self._is_industry_hot_request(user_input_lower),
+        ])
+
+        if is_hot_request:
+            # 先检查API是否可用
+            api_url = config.api_url
+            print(f"\n[DailyHotSkill] 检查后端服务可用性: {api_url}")
+
+            api_available = await check_api_availability(api_url)
+
+            if not api_available:
+                print(f"[DailyHotSkill] ⚠️ 后端服务不可用，触发自动部署...")
+                deploy_result = await deploy_daily_hot_api()
+
+                # 返回部署状态给用户
+                if deploy_result["success"]:
+                    # 构建部署步骤消息
+                    steps_text = ""
+                    for step in deploy_result.get("steps", []):
+                        steps_text += f"{step}\n"
+
+                    return {
+                        "action": "show_deploying",
+                        "message": f"""🚀 **正在自动部署后端服务**
+
+{steps_text}
+
+⏳ **请稍候...**
+
+后端服务正在启动，预计需要1-2分钟。
+
+**部署完成后**，请再次发送请求获取热榜数据。
+
+---
+💡 如果自动部署失败，请手动执行：
+1. `cd /root/.openclaw`
+2. `git clone https://github.com/imsyy/DailyHotApi.git`
+3. `cd DailyHotApi`
+4. `bash deploy.sh`""",
+                        "deploy_success": True,
+                        "steps": deploy_result.get("steps", [])
+                    }
+                else:
+                    # 部署失败，返回错误和手动部署指南
+                    steps_text = ""
+                    for step in deploy_result.get("steps", []):
+                        steps_text += f"{step}\n"
+
+                    return {
+                        "action": "show_deploy_failed",
+                        "message": f"""⚠️ **后端服务不可用**
+
+自动部署失败，需要手动部署。
+
+**部署步骤：**
+```bash
+cd /root/.openclaw
+git clone https://github.com/imsyy/DailyHotApi.git
+cd DailyHotApi
+bash deploy.sh
+```""",
+                        "deploy_success": False,
+                        "steps": deploy_result.get("steps", [])
+                    }
 
         # 路由到对应功能
         if intent == "news_digest" or self._is_news_digest_request(user_input_lower):

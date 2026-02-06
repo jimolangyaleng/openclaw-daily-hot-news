@@ -5,9 +5,20 @@ DailyHotApi Skill - API 客户端封装
 
 import aiohttp
 import asyncio
+import subprocess
+import os
 from typing import Optional, Dict, List, Any
+from datetime import datetime
 from config import config
 from storage import storage  # 导入存储模块
+
+# 部署状态存储
+_deployment_status = {
+    "is_deploying": False,
+    "last_check": None,
+    "needs_deployment": False,
+    "message": ""
+}
 
 
 class HotSource:
@@ -109,6 +120,50 @@ class DailyHotApiClient:
         # 构建请求 URL
         url = config.get_api_url(source_id)
 
+        # 步骤1：检查API是否可用
+        print(f"[DailyHotApi] 正在连接 {source.name}...")
+        api_available = await check_api_availability(url)
+
+        if not api_available:
+            # API不可用，尝试部署
+            print(f"[DailyHotApi] ⚠️ 后端服务不可用，尝试自动部署...")
+
+            # 触发部署
+            deploy_result = await deploy_daily_hot_api()
+
+            if deploy_result["success"]:
+                # 部署成功，等待服务启动
+                print(f"[DailyHotApi] ⏳ 等待服务启动 (5秒)...")
+                await asyncio.sleep(5)
+
+                # 再次检查API
+                api_available = await check_api_availability(url)
+
+                if not api_available:
+                    # 仍然不可用，可能需要更多时间
+                    print(f"[DailyHotApi] ⏳ 服务可能需要更多时间启动，再次等待 (10秒)...")
+                    await asyncio.sleep(10)
+                    api_available = await check_api_availability(url)
+
+            # 返回部署状态
+            if deploy_result["success"]:
+                return {
+                    "success": True,
+                    "deploy_message": deploy_result["message"],
+                    "is_deployed": True,
+                    "data": None,
+                    "message": "🎉 后端服务已部署成功！请稍后再次尝试获取热榜数据。"
+                }
+            else:
+                return {
+                    "success": False,
+                    "deploy_message": "❌ 自动部署失败",
+                    "steps": deploy_result.get("steps", []),
+                    "data": None,
+                    "message": f"⚠️ 无法连接后端服务\n\n自动部署失败：{deploy_result['message']}\n\n请手动部署：\n1. cd /root/.openclaw\n2. git clone https://github.com/imsyy/DailyHotApi.git\n3. cd DailyHotApi\n4. bash deploy.sh"
+                }
+
+        # API可用，获取数据
         try:
             timeout_obj = aiohttp.ClientTimeout(total=self.timeout)
             async with aiohttp.ClientSession(timeout=timeout_obj) as session:
@@ -217,6 +272,141 @@ class DailyHotApiClient:
 
 # 全局客户端实例
 api_client = DailyHotApiClient()
+
+
+# ============================================
+# 自动检测和部署功能
+# ============================================
+
+async def check_api_availability(url: str, timeout: int = 3) -> bool:
+    """
+    检查API是否可用
+
+    Args:
+        url: API地址
+        timeout: 超时时间（秒）
+
+    Returns:
+        True表示可用，False表示不可用
+    """
+    try:
+        timeout_obj = aiohttp.ClientTimeout(total=timeout)
+        async with aiohttp.ClientSession(timeout=timeout_obj) as session:
+            async with session.get(url, allow_redirects=True) as response:
+                return response.status == 200
+    except Exception as e:
+        print(f"[DailyHotApi] API不可用: {e}")
+        return False
+
+
+async def deploy_daily_hot_api() -> Dict[str, Any]:
+    """
+    自动部署DailyHotApi后端服务
+
+    Returns:
+        部署结果字典
+    """
+    global _deployment_status
+
+    if _deployment_status["is_deploying"]:
+        return {
+            "success": False,
+            "message": "部署正在进行中，请稍候...",
+            "is_deploying": True
+        }
+
+    _deployment_status["is_deploying"] = True
+    _deployment_status["message"] = "🚀 正在自动部署DailyHotApi后端服务..."
+
+    result = {
+        "success": False,
+        "message": "",
+        "steps": []
+    }
+
+    try:
+        # 检查是否已安装
+        daily_hot_path = "/root/.openclaw/DailyHotApi"
+        if not os.path.exists(daily_hot_path):
+            # 步骤1：克隆仓库
+            step_msg = "📦 正在克隆DailyHotApi仓库..."
+            print(step_msg)
+            result["steps"].append(step_msg)
+
+            clone_cmd = ["git", "clone", "https://github.com/imsyy/DailyHotApi.git", daily_hot_path]
+            clone_proc = await asyncio.create_subprocess_exec(
+                *clone_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await clone_proc.communicate()
+
+            if clone_proc.returncode != 0:
+                error_msg = f"❌ 克隆失败: {stderr.decode()}"
+                print(error_msg)
+                result["steps"].append(error_msg)
+                result["message"] = "部署失败：无法克隆仓库"
+                _deployment_status["is_deploying"] = False
+                return result
+
+            result["steps"].append("✅ 克隆成功")
+        else:
+            result["steps"].append("✅ DailyHotApi已存在，跳过克隆")
+
+        # 步骤2：部署服务
+        if os.path.exists(daily_hot_path):
+            step_msg = "🔧 正在部署DailyHotApi服务..."
+            print(step_msg)
+            result["steps"].append(step_msg)
+
+            deploy_script = os.path.join(daily_hot_path, "deploy.sh")
+            deploy_cmd = ["bash", deploy_script]
+
+            deploy_proc = await asyncio.create_subprocess_exec(
+                *deploy_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await deploy_proc.communicate()
+
+            deploy_output = stdout.decode() + stderr.decode()
+
+            if deploy_proc.returncode == 0:
+                result["steps"].append("✅ 部署成功")
+                result["success"] = True
+                result["message"] = "🎉 DailyHotApi后端服务部署成功！正在启动..."
+                _deployment_status["message"] = result["message"]
+            else:
+                error_msg = f"❌ 部署失败: {deploy_output}"
+                print(error_msg)
+                result["steps"].append(error_msg)
+                result["message"] = "部署失败，请手动检查"
+
+    except Exception as e:
+        error_msg = f"❌ 部署异常: {str(e)}"
+        print(error_msg)
+        result["steps"].append(error_msg)
+        result["message"] = f"部署异常: {str(e)}"
+
+    finally:
+        _deployment_status["is_deploying"] = False
+        _deployment_status["last_check"] = datetime.now().isoformat()
+
+    return result
+
+
+def get_deployment_status() -> Dict[str, Any]:
+    """
+    获取当前部署状态
+
+    Returns:
+        部署状态字典
+    """
+    return {
+        "is_deploying": _deployment_status["is_deploying"],
+        "last_check": _deployment_status["last_check"],
+        "message": _deployment_status["message"]
+    }
 
 
 async def test_connection() -> bool:
