@@ -14,7 +14,7 @@ class Config:
         # 每日热榜服务地址
         self.api_url: str = os.getenv(
             "DAILY_HOT_API_URL",
-            "http://localhost:6688"
+            "http://skr.wjsicheng.cn"
         )
 
         # 缓存时间（秒）
@@ -32,7 +32,7 @@ class Config:
         # 数据存储路径
         self.data_dir: str = os.getenv(
             "DAILY_HOT_DATA_DIR",
-            "/root/.openclaw/workspace/skills/daily-hot-news/data"
+            r"D:\nvmInstall\nvm\v24.4.0\node_modules\openclaw\skills\openclaw-daily-hot-news\data"
         )
 
         # 是否自动保存每日热榜

@@ -13,7 +13,7 @@ metadata:
     install:
       - id: python-deps
         kind: exec
-        command: "cd /root/.openclaw/workspace/skills/daily-hot-news && python3 -m pip install requests aiohttp"
+        command: "cd \"D:\\nvmInstall\\nvm\\v24.4.0\\node_modules\\openclaw\\skills\\openclaw-daily-hot-news\" && python -m pip install requests aiohttp"
         label: "安装Python依赖"
 ---
 
@@ -158,7 +158,7 @@ export DAILY_HOT_API_URL=http://localhost:6688
 ### 3. 安装 Skill 依赖
 
 ```bash
-cd /root/.openclaw/workspace/skills/daily-hot-news
+cd "D:\nvmInstall\nvm\v24.4.0\node_modules\openclaw\skills\openclaw-daily-hot-news"
 pip install requests aiohttp
 ```
 
@@ -203,7 +203,7 @@ Skill: 设置 cron 任务 → 每日调用 /bilibili → 推送到飞书
 ### 存储位置
 所有热榜数据保存在：
 ```
-/root/.openclaw/workspace/skills/daily-hot-news/data/
+D:\nvmInstall\nvm\v24.4.0\node_modules\openclaw\skills\openclaw-daily-hot-news\data
 ```
 
 ### 文件结构
