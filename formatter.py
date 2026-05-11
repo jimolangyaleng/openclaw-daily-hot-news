@@ -44,7 +44,7 @@ class ResponseFormatter:
             rank = item.get("rank", 0)
             title = item.get("title", "")
             hot = item.get("hot", "")
-            url = item.get("url", "")
+            url = item.get("url", "") or item.get("mobile_url", "")
 
             # 热度处理
             hot_str = f" {hot}" if hot else ""
@@ -53,7 +53,11 @@ class ResponseFormatter:
             if len(title) > 40:
                 title = title[:40] + "..."
 
-            lines.append(f"{rank:2d}. {title}{hot_str}")
+            line = f"{rank:2d}. {title}{hot_str}"
+            if url:
+                line += f"\n   🔗 {url}"
+
+            lines.append(line)
 
         # 底部
         lines.append("")
@@ -75,6 +79,7 @@ class ResponseFormatter:
             rank = item.get("rank", 0)
             title = item.get("title", "")
             hot = item.get("hot", "")
+            url = item.get("url", "") or item.get("mobile_url", "")
 
             # 简化标题
             title = title.replace("\n", " ")
@@ -82,7 +87,10 @@ class ResponseFormatter:
                 title = title[:30] + "..."
 
             hot_str = f" 📈 {hot}" if hot else ""
-            lines.append(f"{rank:2d}. {title}{hot_str}")
+            line = f"{rank:2d}. {title}{hot_str}"
+            if url:
+                line += f" 🔗"
+            lines.append(line)
 
         return "\n".join(lines)
 
